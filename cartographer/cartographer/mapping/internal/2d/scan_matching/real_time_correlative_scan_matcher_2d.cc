@@ -114,37 +114,173 @@ RealTimeCorrelativeScanMatcher2D::GenerateExhaustiveSearchCandidates(
   return candidates;
 }
 // 修改
+// double RealTimeCorrelativeScanMatcher2D::Match(
+//     const transform::Rigid2d& initial_pose_estimate,
+//     const sensor::PointCloud& point_cloud, const Grid2D& grid,
+//     transform::Rigid2d* pose_estimate,bool corridor) const {
+//   CHECK(pose_estimate != nullptr);
+//   bool corridor_ = corridor;
+//   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
+//   const sensor::PointCloud rotated_point_cloud = sensor::TransformPointCloud(
+//       point_cloud,
+//       transform::Rigid3f::Rotation(Eigen::AngleAxisf(
+//           initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
+//   const SearchParameters search_parameters(
+//       options_.linear_search_window(), options_.angular_search_window(),
+//       rotated_point_cloud, grid.limits().resolution());
+
+//   const std::vector<sensor::PointCloud> rotated_scans =
+//       GenerateRotatedScans(rotated_point_cloud, search_parameters);
+//   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
+//       grid.limits(), rotated_scans,
+//       Eigen::Translation2f(initial_pose_estimate.translation().x(),
+//                            initial_pose_estimate.translation().y()));
+//   std::vector<Candidate2D> candidates =
+//       GenerateExhaustiveSearchCandidates(search_parameters);
+//   ScoreCandidates(grid, discrete_scans, search_parameters, &candidates,corridor_);
+
+//   const Candidate2D& best_candidate =
+//       *std::max_element(candidates.begin(), candidates.end());
+//   *pose_estimate = transform::Rigid2d(
+//       {initial_pose_estimate.translation().x() + best_candidate.x,
+//        initial_pose_estimate.translation().y() + best_candidate.y},
+//       initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
+//   return best_candidate.score;
+// }
+
+// 增加退化检查基准实验
 double RealTimeCorrelativeScanMatcher2D::Match(
     const transform::Rigid2d& initial_pose_estimate,
-    const sensor::PointCloud& point_cloud, const Grid2D& grid,
-    transform::Rigid2d* pose_estimate,bool corridor) const {
+    const sensor::PointCloud& point_cloud,
+    const Grid2D& grid,
+    transform::Rigid2d* pose_estimate,
+    bool corridor) const {
+
   CHECK(pose_estimate != nullptr);
-  bool corridor_ = corridor;
+
   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
-  const sensor::PointCloud rotated_point_cloud = sensor::TransformPointCloud(
-      point_cloud,
-      transform::Rigid3f::Rotation(Eigen::AngleAxisf(
-          initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
+
+  // 1. 将点云旋转到初始姿态
+  const sensor::PointCloud rotated_point_cloud =
+      sensor::TransformPointCloud(
+          point_cloud,
+          transform::Rigid3f::Rotation(
+              Eigen::AngleAxisf(initial_rotation.cast<float>().angle(),
+                                Eigen::Vector3f::UnitZ())));
+
+  // --------------------------------------------------
+  // 2. Baseline退化检测（PCA Eigenvalue）
+  // --------------------------------------------------
+  bool is_degenerate = false;
+
+  if (rotated_point_cloud.size() > 10) {
+
+    Eigen::Vector2d mean = Eigen::Vector2d::Zero();
+
+    for (const auto& p : rotated_point_cloud) {
+      mean += Eigen::Vector2d(p.position.x(), p.position.y());
+    }
+
+    mean /= rotated_point_cloud.size();
+
+    Eigen::Matrix2d cov = Eigen::Matrix2d::Zero();
+
+    for (const auto& p : rotated_point_cloud) {
+      Eigen::Vector2d pt(p.position.x(), p.position.y());
+      Eigen::Vector2d diff = pt - mean;
+      cov += diff * diff.transpose();
+    }
+
+    cov /= rotated_point_cloud.size();
+
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix2d> solver(cov);
+
+    Eigen::Vector2d eigenvalues = solver.eigenvalues();
+
+    double lambda_min = eigenvalues(0);
+    double lambda_max = eigenvalues(1);
+
+    double ratio = lambda_min / lambda_max;
+
+    // baseline threshold
+    if (ratio < 0.1) {
+      is_degenerate = true;
+    }
+
+    // optional log for experiments
+    LOG(INFO) << "Degeneration ratio: " << ratio;
+  }
+
+  // --------------------------------------------------
+  // 3. 融合退化判断
+  // --------------------------------------------------
+
+  bool corridor_ = corridor || is_degenerate;
+
+  // --------------------------------------------------
+  // 4. 构建搜索参数
+  // --------------------------------------------------
+
   const SearchParameters search_parameters(
-      options_.linear_search_window(), options_.angular_search_window(),
-      rotated_point_cloud, grid.limits().resolution());
+      options_.linear_search_window(),
+      options_.angular_search_window(),
+      rotated_point_cloud,
+      grid.limits().resolution());
+
+  // --------------------------------------------------
+  // 5. 生成旋转扫描
+  // --------------------------------------------------
 
   const std::vector<sensor::PointCloud> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
-  const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
-      grid.limits(), rotated_scans,
-      Eigen::Translation2f(initial_pose_estimate.translation().x(),
-                           initial_pose_estimate.translation().y()));
+
+  // --------------------------------------------------
+  // 6. 离散化扫描
+  // --------------------------------------------------
+
+  const std::vector<DiscreteScan2D> discrete_scans =
+      DiscretizeScans(
+          grid.limits(),
+          rotated_scans,
+          Eigen::Translation2f(
+              initial_pose_estimate.translation().x(),
+              initial_pose_estimate.translation().y()));
+
+  // --------------------------------------------------
+  // 7. 生成候选位姿
+  // --------------------------------------------------
+
   std::vector<Candidate2D> candidates =
       GenerateExhaustiveSearchCandidates(search_parameters);
-  ScoreCandidates(grid, discrete_scans, search_parameters, &candidates,corridor_);
+
+  // --------------------------------------------------
+  // 8. 评分（带退化补偿）
+  // --------------------------------------------------
+
+  ScoreCandidates(grid,
+                  discrete_scans,
+                  search_parameters,
+                  &candidates,
+                  corridor_);
+
+  // --------------------------------------------------
+  // 9. 选择最优候选
+  // --------------------------------------------------
 
   const Candidate2D& best_candidate =
       *std::max_element(candidates.begin(), candidates.end());
-  *pose_estimate = transform::Rigid2d(
-      {initial_pose_estimate.translation().x() + best_candidate.x,
-       initial_pose_estimate.translation().y() + best_candidate.y},
-      initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
+
+  // --------------------------------------------------
+  // 10. 更新位姿
+  // --------------------------------------------------
+
+  *pose_estimate =
+      transform::Rigid2d(
+          {initial_pose_estimate.translation().x() + best_candidate.x,
+           initial_pose_estimate.translation().y() + best_candidate.y},
+          initial_rotation *
+              Eigen::Rotation2Dd(best_candidate.orientation));
+
   return best_candidate.score;
 }
 
@@ -178,25 +314,29 @@ void RealTimeCorrelativeScanMatcher2D::ScoreCandidates(
     if (corridor)
     {
 // Reduce the penalty for deviation from the initial pose estimate
-        translation_weight *= 2.0; // example adjustment
-        rotation_weight *= 2.0; // example adjustment
+        translation_weight *= 3.0; // example adjustment
+        rotation_weight *= 0.3; // example adjustment
     }
     else
     {
         translation_weight *= 0.5; // example adjustment
         rotation_weight *= 0.5; // example adjustment
     }
-      candidate.score *=
-      std::exp(-common::Pow2(std::hypot(candidate.x, candidate.y) *
-      translation_weight +
-      std::abs(candidate.orientation) *
-      rotation_weight));
+      // candidate.score *=
+      // std::exp(-common::Pow2(std::hypot(candidate.x, candidate.y) *
+      // translation_weight +
+      // std::abs(candidate.orientation) *
+      // rotation_weight));
 
-    // candidate.score *=
-    //     std::exp(-common::Pow2(std::hypot(candidate.x, candidate.y) *
-    //                                options_.translation_delta_cost_weight() +
-    //                            std::abs(candidate.orientation) *
-    //                                options_.rotation_delta_cost_weight()));
+      // 平移和旋转独立惩罚
+      double trans_penalty = std::exp(-common::Pow2(
+      std::hypot(candidate.x, candidate.y) * translation_weight));
+      double rot_penalty = std::exp(-common::Pow2(
+      std::abs(candidate.orientation) * rotation_weight));
+
+      candidate.score *= trans_penalty * rot_penalty;
+
+
   }
 }
 

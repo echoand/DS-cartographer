@@ -24,7 +24,7 @@
       output="screen">
     <!-- <remap from="scan" to="horizontal_laser_2d" /> -->
     <remap from="scan" to="scan" />
-    <remap from="/odom" to="/odom_ekf"/>
+    <!-- <remap from="/odom" to="/odom_ekf"/> -->
     <!-- <remap from="imu" to="/imu_data"/> -->
 
   </node>

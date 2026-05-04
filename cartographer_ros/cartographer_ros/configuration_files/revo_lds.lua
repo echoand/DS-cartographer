@@ -47,8 +47,8 @@ options = {
 MAP_BUILDER.use_trajectory_builder_2d = true
 
 TRAJECTORY_BUILDER_2D.submaps.num_range_data = 50
-TRAJECTORY_BUILDER_2D.min_range = 0.15
-TRAJECTORY_BUILDER_2D.max_range = 10.
+TRAJECTORY_BUILDER_2D.min_range = 0.10
+TRAJECTORY_BUILDER_2D.max_range = 15.
 TRAJECTORY_BUILDER_2D.missing_data_ray_length = 1.
 TRAJECTORY_BUILDER_2D.use_imu_data = true
 TRAJECTORY_BUILDER_2D.use_online_correlative_scan_matching = true
@@ -58,6 +58,6 @@ TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.rotation_delta_cost_wei
 
 POSE_GRAPH.optimization_problem.huber_scale = 1e2
 POSE_GRAPH.optimize_every_n_nodes = 180
-POSE_GRAPH.constraint_builder.min_score = 0.60
+POSE_GRAPH.constraint_builder.min_score = 0.6
 
 return options
