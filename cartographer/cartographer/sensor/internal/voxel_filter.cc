@@ -74,29 +74,6 @@ PointCloud AdaptivelyVoxelFiltered(
   return result;
 }
 
-// PointCloud AdaptivelyVoxelFiltered(
-//     const proto::AdaptiveVoxelFilterOptions& options,
-//     const PointCloud& point_cloud) {
-//       if (point_cloud.size() <= options.min_num_points()){
-//         return point_cloud;
-//       }
-
-//       PointCloud result = VoxelFilter(point_cloud,options.max_length());
-
-//       if (result.size() >= options.min_num_points()){
-//         return result;
-//       }
-
-//       float s = sqrt(1/point_cloud.size());
-//       float scale_factor = 2*std::exp(1.0)/(sqrt((exp(s)-exp(-s))/(exp(s)-exp(-s)))+1);
-//       float high_length  = options.max_length();
-//       float high_length_ = high_length*scale_factor;
-//       result = VoxelFilter(point_cloud,high_length_); 
-
-//       return result;
-
-//   }
-
 using VoxelKeyType = uint64_t;
 
 VoxelKeyType GetVoxelCellIndex(const Eigen::Vector3f& point,

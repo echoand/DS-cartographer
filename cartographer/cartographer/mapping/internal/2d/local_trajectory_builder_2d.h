@@ -75,7 +75,7 @@ class LocalTrajectoryBuilder2D {
   void AddOdometryData(const sensor::OdometryData& odometry_data);
 
   static void RegisterMetrics(metrics::FamilyFactory* family_factory);
-  
+
  private:
   std::unique_ptr<MatchingResult> AddAccumulatedRangeData(
       common::Time time, const sensor::RangeData& gravity_aligned_range_data,
@@ -117,7 +117,6 @@ class LocalTrajectoryBuilder2D {
   absl::optional<common::Time> last_sensor_time_;
 
   RangeDataCollator range_data_collator_;
-  bool corridor;
 };
 
 }  // namespace mapping

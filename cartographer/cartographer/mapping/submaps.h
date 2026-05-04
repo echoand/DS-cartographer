@@ -85,7 +85,7 @@ class Submap {
   }
 
  private:
-  const transform::Rigid3d local_pose_; //子图原点在local坐标下的坐标
+  const transform::Rigid3d local_pose_;
   int num_range_data_ = 0;
   bool insertion_finished_ = false;
 };

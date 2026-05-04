@@ -30,8 +30,6 @@ struct TimedPointCloudData {
   TimedPointCloud ranges;
   // 'intensities' has to be same size as 'ranges', or empty.
   std::vector<float> intensities;
-  bool corridor;
-  
 };
 
 struct TimedPointCloudOriginData {

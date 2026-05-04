@@ -36,7 +36,7 @@
 #include "sensor_msgs/MultiEchoLaserScan.h"
 #include "sensor_msgs/NavSatFix.h"
 #include "sensor_msgs/PointCloud2.h"
-#include <std_msgs/Bool.h>
+
 namespace cartographer_ros {
 
 // Converts ROS messages into SensorData in tracking frame for the MapBuilder.
@@ -51,13 +51,8 @@ class SensorBridge {
   SensorBridge(const SensorBridge&) = delete;
   SensorBridge& operator=(const SensorBridge&) = delete;
 
- 
-      
   std::unique_ptr<::cartographer::sensor::OdometryData> ToOdometryData(
       const nav_msgs::Odometry::ConstPtr& msg);
-
-//   void HandleboolMessage(const std::string& sensor_id,
-//       const std_msgs::Bool::ConstPtr& msg);
   void HandleOdometryMessage(const std::string& sensor_id,
                              const nav_msgs::Odometry::ConstPtr& msg);
   void HandleNavSatFixMessage(const std::string& sensor_id,
@@ -71,7 +66,7 @@ class SensorBridge {
   void HandleImuMessage(const std::string& sensor_id,
                         const sensor_msgs::Imu::ConstPtr& msg);
   void HandleLaserScanMessage(const std::string& sensor_id,
-                              const sensor_msgs::LaserScan::ConstPtr& msg, const bool& corridor);
+                              const sensor_msgs::LaserScan::ConstPtr& msg);
   void HandleMultiEchoLaserScanMessage(
       const std::string& sensor_id,
       const sensor_msgs::MultiEchoLaserScan::ConstPtr& msg);
@@ -102,7 +97,6 @@ class SensorBridge {
       trajectory_builder_;
 
   absl::optional<::cartographer::transform::Rigid3d> ecef_to_local_frame_;
-  bool corridor;
 };
 
 }  // namespace cartographer_ros

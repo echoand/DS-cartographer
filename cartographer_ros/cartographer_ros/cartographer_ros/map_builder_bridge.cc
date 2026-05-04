@@ -104,29 +104,23 @@ MapBuilderBridge::MapBuilderBridge(
       map_builder_(std::move(map_builder)),
       tf_buffer_(tf_buffer) {}
 
-// 加载pbstream文件
 void MapBuilderBridge::LoadState(const std::string& state_filename,
                                  bool load_frozen_state) {
   // Check if suffix of the state file is ".pbstream".
   const std::string suffix = ".pbstream";
-  // 检查后缀是否是.pbstream
   CHECK_EQ(state_filename.substr(
                std::max<int>(state_filename.size() - suffix.size(), 0)),
            suffix)
       << "The file containing the state to be loaded must be a "
          ".pbstream file.";
   LOG(INFO) << "Loading saved state '" << state_filename << "'...";
-  // 加载文件内容
   cartographer::io::ProtoStreamReader stream(state_filename);
-  // 解析数据
   map_builder_->LoadState(&stream, load_frozen_state);
 }
 
-// 开始一条轨迹
 int MapBuilderBridge::AddTrajectory(
     const std::set<cartographer::mapping::TrajectoryBuilderInterface::SensorId>&
         expected_sensor_ids,
-    // 开始一条新的轨迹，返回新轨迹的id，需要传入一个函数
     const TrajectoryOptions& trajectory_options) {
   const int trajectory_id = map_builder_->AddTrajectoryBuilder(
       expected_sensor_ids, trajectory_options.trajectory_builder_options,
@@ -142,20 +136,18 @@ int MapBuilderBridge::AddTrajectory(
 
   // Make sure there is no trajectory with 'trajectory_id' yet.
   CHECK_EQ(sensor_bridges_.count(trajectory_id), 0);
-  // 为这个轨迹添加一个SensorBridge
   sensor_bridges_[trajectory_id] = absl::make_unique<SensorBridge>(
       trajectory_options.num_subdivisions_per_laser_scan,
       trajectory_options.ignore_out_of_order_messages,
       trajectory_options.tracking_frame,
       node_options_.lookup_transform_timeout_sec, tf_buffer_,
       map_builder_->GetTrajectoryBuilder(trajectory_id));
-  // 保存轨迹的参数配置
   auto emplace_result =
       trajectory_options_.emplace(trajectory_id, trajectory_options);
   CHECK(emplace_result.second == true);
   return trajectory_id;
 }
-// 结束指定的轨迹
+
 void MapBuilderBridge::FinishTrajectory(const int trajectory_id) {
   LOG(INFO) << "Finishing trajectory with ID '" << trajectory_id << "'...";
 
@@ -164,13 +156,12 @@ void MapBuilderBridge::FinishTrajectory(const int trajectory_id) {
   map_builder_->FinishTrajectory(trajectory_id);
   sensor_bridges_.erase(trajectory_id);
 }
-// 当所有的轨迹结束时，执行一次全局优化
+
 void MapBuilderBridge::RunFinalOptimization() {
   LOG(INFO) << "Running final trajectory optimization...";
   map_builder_->pose_graph()->RunFinalOptimization();
 }
 
-// 将地图，轨迹，以及各个传感器数据进行序列化保存
 bool MapBuilderBridge::SerializeState(const std::string& filename,
                                       const bool include_unfinished_submaps) {
   return map_builder_->SerializeStateToFile(include_unfinished_submaps,
@@ -207,7 +198,7 @@ void MapBuilderBridge::HandleSubmapQuery(
   response.status.message = "Success.";
   response.status.code = cartographer_ros_msgs::StatusCode::OK;
 }
-// 想pose graph中添加新的active状态的轨迹，并返回所有的轨迹状态
+
 std::map<int, ::cartographer::mapping::PoseGraphInterface::TrajectoryState>
 MapBuilderBridge::GetTrajectoryStates() {
   auto trajectory_states = map_builder_->pose_graph()->GetTrajectoryStates();
@@ -220,7 +211,7 @@ MapBuilderBridge::GetTrajectoryStates() {
   }
   return trajectory_states;
 }
-// 获取所有的submap的信息
+
 cartographer_ros_msgs::SubmapList MapBuilderBridge::GetSubmapList() {
   cartographer_ros_msgs::SubmapList submap_list;
   submap_list.header.stamp = ::ros::Time::now();
@@ -238,7 +229,7 @@ cartographer_ros_msgs::SubmapList MapBuilderBridge::GetSubmapList() {
   }
   return submap_list;
 }
-// 获取local坐标系下的TrajectoryData
+
 std::unordered_map<int, MapBuilderBridge::LocalTrajectoryData>
 MapBuilderBridge::GetLocalTrajectoryData() {
   std::unordered_map<int, LocalTrajectoryData> local_trajectory_data;
@@ -267,7 +258,7 @@ MapBuilderBridge::GetLocalTrajectoryData() {
   }
   return local_trajectory_data;
 }
-// 获取对应id轨迹的所有位姿的集合
+
 void MapBuilderBridge::HandleTrajectoryQuery(
     cartographer_ros_msgs::TrajectoryQuery::Request& request,
     cartographer_ros_msgs::TrajectoryQuery::Response& response) {

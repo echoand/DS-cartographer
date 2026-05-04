@@ -23,6 +23,7 @@
 namespace cartographer_ros {
 
 namespace carto = ::cartographer;
+
 using carto::transform::Rigid3d;
 
 namespace {
@@ -48,33 +49,18 @@ SensorBridge::SensorBridge(
       tf_bridge_(tracking_frame, lookup_transform_timeout_sec, tf_buffer),
       trajectory_builder_(trajectory_builder) {}
 
-// 将ros格式的里程计数据转成tracking frame的pose，再转成carto的里程计数据
 std::unique_ptr<carto::sensor::OdometryData> SensorBridge::ToOdometryData(
     const nav_msgs::Odometry::ConstPtr& msg) {
   const carto::common::Time time = FromRos(msg->header.stamp);
-
-  // 查找从tracking_frame_到frame_id的坐标变换
   const auto sensor_to_tracking = tf_bridge_.LookupToTracking(
-    // 检查frame_id是否带有‘/‘
       time, CheckNoLeadingSlash(msg->child_frame_id));
   if (sensor_to_tracking == nullptr) {
     return nullptr;
   }
-  // 将ros格式的里程计数据转成tracking frame的pose，再转成carto的里程计数据
   return absl::make_unique<carto::sensor::OdometryData>(
       carto::sensor::OdometryData{
           time, ToRigid3d(msg->pose.pose) * sensor_to_tracking->inverse()});
 }
-// 把ros格式的bool数据转成carto格式的数据
-//   std::unique_ptr<::cartographer::sensor::BoolData> ToBoolData(
-//       const std_msgs::Bool::ConstPtr& msg)
-// {
-//   std_msgs::Bool bool_msg;
-//   bool_msg.data = msg->data;
-// const carto::common::Time time = time1;
-// return absl::make_unique<carto::sensor::BoolData>(
-//       carto::sensor::BoolData{time, bool_msg});
-// }
 
 bool SensorBridge::IgnoreMessage(const std::string& sensor_id,
                                  cartographer::common::Time sensor_time) {
@@ -87,19 +73,9 @@ bool SensorBridge::IgnoreMessage(const std::string& sensor_id,
   }
   return sensor_time <= it->second;
 }
-// void SensorBridge::HandleboolMessage(
-//     const std::string& sensor_id,  const std_msgs::Bool::ConstPtr& msg) {
-//   std::unique_ptr<carto::sensor::BoolData> bool_data =
-//       ToBoolData(msg);
-//   // if (bool_data != nullptr) {
-//   //   trajectory_builder_->AddSensorData(
-//   //       sensor_id,carto::sensor::BoolData{bool_data->time, bool_data->data});
-//   // }
-// }
-// 调用trajectory_builder_的AddSensorData进行数据的处理
+
 void SensorBridge::HandleOdometryMessage(
     const std::string& sensor_id, const nav_msgs::Odometry::ConstPtr& msg) {
-  // 数据类型与数据坐标系的转换
   std::unique_ptr<carto::sensor::OdometryData> odometry_data =
       ToOdometryData(msg);
   if (odometry_data != nullptr) {
@@ -207,10 +183,9 @@ void SensorBridge::HandleImuMessage(const std::string& sensor_id,
 }
 
 void SensorBridge::HandleLaserScanMessage(
-    const std::string& sensor_id, const sensor_msgs::LaserScan::ConstPtr& msg, const bool& corridor) {
+    const std::string& sensor_id, const sensor_msgs::LaserScan::ConstPtr& msg) {
   carto::sensor::PointCloudWithIntensities point_cloud;
   carto::common::Time time;
-  // 把ros格式的数据类型转换成cartographer的数据类型
   std::tie(point_cloud, time) = ToPointCloudWithIntensities(*msg);
   HandleLaserScan(sensor_id, time, msg->header.frame_id, point_cloud);
 }
@@ -243,7 +218,6 @@ void SensorBridge::HandleLaserScan(
     return;
   }
   CHECK_LE(points.points.back().time, 0.f);
-  // 把一帧点云分成好几份，为了处理点云的畸变
   // TODO(gaschler): Use per-point time instead of subdivisions.
   for (int i = 0; i != num_subdivisions_per_laser_scan_; ++i) {
     const size_t start_index =
@@ -274,7 +248,6 @@ void SensorBridge::HandleLaserScan(
       point.time -= time_to_subdivision_end;
     }
     CHECK_EQ(subdivision.back().time, 0.f);
-    // 这个很重要
     HandleRangefinder(sensor_id, subdivision_time, frame_id, subdivision);
   }
 }
@@ -296,12 +269,11 @@ void SensorBridge::HandleRangefinder(
       return;
     }
     latest_sensor_time_[sensor_id] = time;
-    //trajectory_builder_是map_builder中的
     trajectory_builder_->AddSensorData(
         sensor_id, carto::sensor::TimedPointCloudData{
                        time, sensor_to_tracking->translation().cast<float>(),
                        carto::sensor::TransformTimedPointCloud(
-                           ranges, sensor_to_tracking->cast<float>()),{},corridor});
+                           ranges, sensor_to_tracking->cast<float>())});
   }
 }
 

@@ -63,10 +63,9 @@ class RealTimeCorrelativeScanMatcher2D {
   // Aligns 'point_cloud' within the 'grid' given an
   // 'initial_pose_estimate' then updates 'pose_estimate' with the result and
   // returns the score.
-  // 修改
   double Match(const transform::Rigid2d& initial_pose_estimate,
                const sensor::PointCloud& point_cloud, const Grid2D& grid,
-               transform::Rigid2d* pose_estimate,bool corridor) const;
+               transform::Rigid2d* pose_estimate) const;
 
   // Computes the score for each Candidate2D in a collection. The cost is
   // computed as the sum of probabilities or normalized TSD values, different
@@ -76,8 +75,7 @@ class RealTimeCorrelativeScanMatcher2D {
   void ScoreCandidates(const Grid2D& grid,
                        const std::vector<DiscreteScan2D>& discrete_scans,
                        const SearchParameters& search_parameters,
-                       std::vector<Candidate2D>* candidates,
-                       const bool  corridor) const;
+                       std::vector<Candidate2D>* candidates) const;
 
  private:
   std::vector<Candidate2D> GenerateExhaustiveSearchCandidates(

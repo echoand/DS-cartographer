@@ -50,7 +50,7 @@
 #include "sensor_msgs/NavSatFix.h"
 #include "sensor_msgs/PointCloud2.h"
 #include "tf2_ros/transform_broadcaster.h"
-#include <std_msgs/Bool.h> 
+
 namespace cartographer_ros {
 
 // Wires up ROS topics to SLAM.
@@ -74,7 +74,6 @@ class Node {
   void RunFinalOptimization();
 
   // Starts the first trajectory with the default topics.
-  //使用默认topic名字开始一条轨迹
   void StartTrajectoryWithDefaultTopics(const TrajectoryOptions& options);
 
   // Returns unique SensorIds for multiple input bag files based on
@@ -82,12 +81,10 @@ class Node {
   // 'SensorId::id' is the expected ROS topic name.
   std::vector<
       std::set<::cartographer::mapping::TrajectoryBuilderInterface::SensorId>>
-    //计算多个bag情况下的topic名字的集合
   ComputeDefaultSensorIdsForMultipleBags(
       const std::vector<TrajectoryOptions>& bags_options) const;
 
   // Adds a trajectory for offline processing, i.e. not listening to topics.
-  //添加离线的轨迹
   int AddOfflineTrajectory(
       const std::set<
           cartographer::mapping::TrajectoryBuilderInterface::SensorId>&
@@ -104,8 +101,6 @@ class Node {
       const cartographer_ros_msgs::LandmarkList::ConstPtr& msg);
   void HandleImuMessage(int trajectory_id, const std::string& sensor_id,
                         const sensor_msgs::Imu::ConstPtr& msg);
-  void HandleBoolMessage(int trajectory_id, const std::string& sensor_id,
-                        const std_msgs::Bool::ConstPtr& msg);
   void HandleLaserScanMessage(int trajectory_id, const std::string& sensor_id,
                               const sensor_msgs::LaserScan::ConstPtr& msg);
   void HandleMultiEchoLaserScanMessage(
@@ -115,12 +110,10 @@ class Node {
                                 const sensor_msgs::PointCloud2::ConstPtr& msg);
 
   // Serializes the complete Node state.
-  // 保存状态至pbstream文件
   void SerializeState(const std::string& filename,
                       const bool include_unfinished_submaps);
 
   // Loads a serialized SLAM state from a .pbstream file.
-  // 加载pbstream文件
   void LoadState(const std::string& state_filename, bool load_frozen_state);
 
   ::ros::NodeHandle* node_handle();
@@ -135,8 +128,7 @@ class Node {
     // unique identifier of a subscriber, we remember it ourselves.
     std::string topic;
   };
-  
-  bool corridor;
+
   bool HandleSubmapQuery(
       cartographer_ros_msgs::SubmapQuery::Request& request,
       cartographer_ros_msgs::SubmapQuery::Response& response);
@@ -161,27 +153,20 @@ class Node {
   // Returns the set of SensorIds expected for a trajectory.
   // 'SensorId::id' is the expected ROS topic name.
   std::set<::cartographer::mapping::TrajectoryBuilderInterface::SensorId>
-  // 确定所需要的topic名字的集合
   ComputeExpectedSensorIds(const TrajectoryOptions& options) const;
   int AddTrajectory(const TrajectoryOptions& options);
-  // 订阅话题与注册回调函数
   void LaunchSubscribers(const TrajectoryOptions& options, int trajectory_id);
   void PublishSubmapList(const ::ros::WallTimerEvent& timer_event);
-  //新增一个位姿估计器
   void AddExtrapolator(int trajectory_id, const TrajectoryOptions& options);
-  //新生成一个传感器数据采样器
   void AddSensorSamplers(int trajectory_id, const TrajectoryOptions& options);
   void PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event);
   void PublishTrajectoryNodeList(const ::ros::WallTimerEvent& timer_event);
   void PublishLandmarkPosesList(const ::ros::WallTimerEvent& timer_event);
   void PublishConstraintList(const ::ros::WallTimerEvent& timer_event);
-  //检查TrajectoryOptions是否存在轨迹的配置信息
   bool ValidateTrajectoryOptions(const TrajectoryOptions& options);
-  //检查topic名字是否被其他轨迹使用
   bool ValidateTopicNames(const TrajectoryOptions& options);
   cartographer_ros_msgs::StatusResponse FinishTrajectoryUnderLock(
       int trajectory_id) EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  //检查设置的topic名字是否在ros中存在
   void MaybeWarnAboutTopicMismatch(const ::ros::WallTimerEvent&);
 
   // Helper function for service handlers that need to check trajectory states.

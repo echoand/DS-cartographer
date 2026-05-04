@@ -58,14 +58,11 @@ NodeOptions CreateNodeOptions(
 std::tuple<NodeOptions, TrajectoryOptions> LoadOptions(
     const std::string& configuration_directory,
     const std::string& configuration_basename) {
-//   获取配置文件所在的目录
   auto file_resolver =
       absl::make_unique<cartographer::common::ConfigurationFileResolver>(
           std::vector<std::string>{configuration_directory});
-// 读取配置文件内容到code中
   const std::string code =
       file_resolver->GetFileContentOrDie(configuration_basename);
-// 根据给定的字符串，生成一个lua字典
   cartographer::common::LuaParameterDictionary lua_parameter_dictionary(
       code, std::move(file_resolver));
 

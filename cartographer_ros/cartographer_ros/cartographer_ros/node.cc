@@ -47,9 +47,8 @@
 #include "sensor_msgs/PointCloud2.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "visualization_msgs/MarkerArray.h"
-#include <std_msgs/Bool.h> 
+
 namespace cartographer_ros {
-bool corridor = false;
 
 namespace carto = ::cartographer;
 
@@ -62,10 +61,10 @@ namespace {
 // calls 'handler' on the 'node' to handle messages. Returns the subscriber.
 template <typename MessageType>
 ::ros::Subscriber SubscribeWithHandler(
-    void (Node::*handler)(int, const std::string&, const typename MessageType::ConstPtr&),
+    void (Node::*handler)(int, const std::string&,
+                          const typename MessageType::ConstPtr&),
     const int trajectory_id, const std::string& topic,
-    ::ros::NodeHandle* const node_handle, Node* const node)
-{
+    ::ros::NodeHandle* const node_handle, Node* const node) {
   return node_handle->subscribe<MessageType>(
       topic, kInfiniteSubscriberQueueSize,
       boost::function<void(const typename MessageType::ConstPtr&)>(
@@ -91,22 +90,18 @@ std::string TrajectoryStateToString(const TrajectoryState trajectory_state) {
 
 }  // namespace
 
-//Node类的初始化，将ROS的topic传入SLAM，也就是MapBuilder
 Node::Node(
     const NodeOptions& node_options,
     std::unique_ptr<cartographer::mapping::MapBuilderInterface> map_builder,
     tf2_ros::Buffer* const tf_buffer, const bool collect_metrics)
     : node_options_(node_options),
       map_builder_bridge_(node_options_, std::move(map_builder), tf_buffer) {
-  // 将mutex_上锁，防止在初始化时数据被更改
   absl::MutexLock lock(&mutex_);
-  
-  //默认不启用
   if (collect_metrics) {
     metrics_registry_ = absl::make_unique<metrics::FamilyFactory>();
     carto::metrics::RegisterAllMetrics(metrics_registry_.get());
   }
-  //声明需要发布的topic
+
   submap_list_publisher_ =
       node_handle_.advertise<::cartographer_ros_msgs::SubmapList>(
           kSubmapListTopic, kLatestOnlyPublisherQueueSize);
@@ -124,8 +119,6 @@ Node::Node(
         node_handle_.advertise<::geometry_msgs::PoseStamped>(
             kTrackedPoseTopic, kLatestOnlyPublisherQueueSize);
   }
-
-  //声明发布对应名字的ROS服务，并将服务的发布器放入到vector容器中
   service_servers_.push_back(node_handle_.advertiseService(
       kSubmapQueryServiceName, &Node::HandleSubmapQuery, this));
   service_servers_.push_back(node_handle_.advertiseService(
@@ -140,13 +133,11 @@ Node::Node(
       kGetTrajectoryStatesServiceName, &Node::HandleGetTrajectoryStates, this));
   service_servers_.push_back(node_handle_.advertiseService(
       kReadMetricsServiceName, &Node::HandleReadMetrics, this));
-  
-  //处理之后的点云的发布器
+
   scan_matched_point_cloud_publisher_ =
       node_handle_.advertise<sensor_msgs::PointCloud2>(
           kScanMatchedPointCloudTopic, kLatestOnlyPublisherQueueSize);
-  
-  //进行定时器与函数的绑定，定时发布数据
+
   wall_timers_.push_back(node_handle_.createWallTimer(
       ::ros::WallDuration(node_options_.submap_publish_period_sec),
       &Node::PublishSubmapList, this));
@@ -209,7 +200,6 @@ bool Node::HandleTrajectoryQuery(
     double q_w = response.trajectory[i].pose.orientation.w; 
     outf << std::setprecision(20) << sec << "." << nsec << " " << x << " " << y << " " << z <<" "<<q_x<<" "<<q_y<<" "<<q_z<<" "<<q_w<< std::endl;
   }
-
   return true;
 }
 
@@ -235,7 +225,6 @@ void Node::AddExtrapolator(const int trajectory_id,
           gravity_time_constant));
 }
 
-//新生成一个传感器数据采样器
 void Node::AddSensorSamplers(const int trajectory_id,
                              const TrajectoryOptions& options) {
   CHECK(sensor_samplers_.count(trajectory_id) == 0);
@@ -386,9 +375,6 @@ Node::ComputeExpectedSensorIds(const TrajectoryOptions& options) const {
   using SensorType = SensorId::SensorType;
   std::set<SensorId> expected_topics;
   // Subscribe to all laser scan, multi echo laser scan, and point cloud topics.
-  
-  //如果只有一个传感器，那订阅的topic就是topic
-  //如果是多个传感器，那订阅的topic就是topic_1,topic_2,依次类推
   for (const std::string& topic :
        ComputeRepeatedTopicNames(kLaserScanTopic, options.num_laser_scans)) {
     expected_topics.insert(SensorId{SensorType::RANGE, topic});
@@ -422,24 +408,16 @@ Node::ComputeExpectedSensorIds(const TrajectoryOptions& options) const {
   if (options.use_landmarks) {
     expected_topics.insert(SensorId{SensorType::LANDMARK, kLandmarkTopic});
   }
-  //返回传感器的topic名字
   return expected_topics;
 }
 
 int Node::AddTrajectory(const TrajectoryOptions& options) {
   const std::set<cartographer::mapping::TrajectoryBuilderInterface::SensorId>
       expected_sensor_ids = ComputeExpectedSensorIds(options);
-  
-  //调用map_builder_bridge的Addtrajectory，添加一个轨迹
   const int trajectory_id =
       map_builder_bridge_.AddTrajectory(expected_sensor_ids, options);
-  
-  //新增一个位姿估计器
   AddExtrapolator(trajectory_id, options);
-  //新生成一个传感器数据采样器
   AddSensorSamplers(trajectory_id, options);
-
-  //订阅话题与注册回调函数
   LaunchSubscribers(options, trajectory_id);
   wall_timers_.push_back(node_handle_.createWallTimer(
       ::ros::WallDuration(kTopicMismatchCheckDelaySec),
@@ -450,15 +428,15 @@ int Node::AddTrajectory(const TrajectoryOptions& options) {
   return trajectory_id;
 }
 
-//订阅话题与注册回调函数
 void Node::LaunchSubscribers(const TrajectoryOptions& options,
                              const int trajectory_id) {
-  //对数组中的每个topic进行遍历
-  for (const std::string& topic : ComputeRepeatedTopicNames(kLaserScanTopic, options.num_laser_scans)) 
-  {
+  for (const std::string& topic :
+       ComputeRepeatedTopicNames(kLaserScanTopic, options.num_laser_scans)) {
     subscribers_[trajectory_id].push_back(
         {SubscribeWithHandler<sensor_msgs::LaserScan>(
-             &Node::HandleLaserScanMessage, trajectory_id, topic, &node_handle_, this), topic});
+             &Node::HandleLaserScanMessage, trajectory_id, topic, &node_handle_,
+             this),
+         topic});
   }
   for (const std::string& topic : ComputeRepeatedTopicNames(
            kMultiEchoLaserScanTopic, options.num_multi_echo_laser_scans)) {
@@ -511,15 +489,8 @@ void Node::LaunchSubscribers(const TrajectoryOptions& options,
              &node_handle_, this),
          kLandmarkTopic});
   }
-
-  subscribers_[trajectory_id].push_back(
-        {SubscribeWithHandler<std_msgs::Bool>(
-             &Node::HandleBoolMessage, trajectory_id, kBoolTopic,
-             &node_handle_, this),
-         kBoolTopic});
 }
 
-//检查TrajectoryOptions是否存在2d或者3d轨迹的配置信息
 bool Node::ValidateTrajectoryOptions(const TrajectoryOptions& options) {
   if (node_options_.map_builder_options.use_trajectory_builder_2d()) {
     return options.trajectory_builder_options
@@ -532,7 +503,6 @@ bool Node::ValidateTrajectoryOptions(const TrajectoryOptions& options) {
   return false;
 }
 
-//检查topic名字是否被其他轨迹使用
 bool Node::ValidateTopicNames(const TrajectoryOptions& options) {
   for (const auto& sensor_id : ComputeExpectedSensorIds(options)) {
     const std::string& topic = sensor_id.id;
@@ -661,12 +631,9 @@ bool Node::HandleStartTrajectory(
   return true;
 }
 
-//使用默认topic名字开始一条轨迹，也就是开始slam
 void Node::StartTrajectoryWithDefaultTopics(const TrajectoryOptions& options) {
   absl::MutexLock lock(&mutex_);
-  //检查TrajectoryOptions是否存在2d或者3d轨迹的配置信息
   CHECK(ValidateTrajectoryOptions(options));
-  //添加一条轨迹
   AddTrajectory(options);
 }
 
@@ -820,7 +787,6 @@ void Node::HandleOdometryMessage(const int trajectory_id,
     return;
   }
   auto sensor_bridge_ptr = map_builder_bridge_.sensor_bridge(trajectory_id);
-  // 将里程计的ros格式转换成cartographer的格式
   auto odometry_data_ptr = sensor_bridge_ptr->ToOdometryData(msg);
   if (odometry_data_ptr != nullptr &&
       !sensor_bridge_ptr->IgnoreMessage(sensor_id, odometry_data_ptr->time)) {
@@ -851,17 +817,6 @@ void Node::HandleLandmarkMessage(
       ->HandleLandmarkMessage(sensor_id, msg);
 }
 
-void Node::HandleBoolMessage(
-    const int trajectory_id, const std::string& sensor_id,
-    const std_msgs::Bool::ConstPtr& msg) {
-  // auto sensor_bridge_ptr = map_builder_bridge_.sensor_bridge(trajectory_id);
-  bool corridor = msg->data;
-
-  // sensor_bridge_ptr->HandleboolMessage(sensor_id,msg);
-  // std::cout<<"识别到"<<corridor<<std::endl;
-  
-}
-
 void Node::HandleImuMessage(const int trajectory_id,
                             const std::string& sensor_id,
                             const sensor_msgs::Imu::ConstPtr& msg) {
@@ -885,9 +840,8 @@ void Node::HandleLaserScanMessage(const int trajectory_id,
   if (!sensor_samplers_.at(trajectory_id).rangefinder_sampler.Pulse()) {
     return;
   }
-  // 这一步才是最重要的
   map_builder_bridge_.sensor_bridge(trajectory_id)
-      ->HandleLaserScanMessage(sensor_id, msg,corridor);
+      ->HandleLaserScanMessage(sensor_id, msg);
 }
 
 void Node::HandleMultiEchoLaserScanMessage(

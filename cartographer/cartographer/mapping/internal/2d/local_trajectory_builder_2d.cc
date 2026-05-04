@@ -22,12 +22,10 @@
 #include "absl/memory/memory.h"
 #include "cartographer/metrics/family_factory.h"
 #include "cartographer/sensor/range_data.h"
-#include "cartographer/mapping/2d/probability_grid.h"
-#include "cartographer/mapping/internal/2d/degeneracy_logger.h"
 
 namespace cartographer {
 namespace mapping {
-static auto g_logger = std::make_unique<InlineDegeneracyLogger>("/home/lxb/carto_ws/carto_degeneracy_log.csv"); 
+
 static auto* kLocalSlamLatencyMetric = metrics::Gauge::Null();
 static auto* kLocalSlamRealTimeRatio = metrics::Gauge::Null();
 static auto* kLocalSlamCpuRealTimeRatio = metrics::Gauge::Null();
@@ -64,61 +62,6 @@ LocalTrajectoryBuilder2D::TransformToGravityAlignedFrameAndFilter(
       sensor::VoxelFilter(cropped.misses, options_.voxel_filter_size())};
 }
 
-// std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
-//     const common::Time time, const transform::Rigid2d& pose_prediction,
-//     const sensor::PointCloud& filtered_gravity_aligned_point_cloud) {
-//   if (active_submaps_.submaps().empty()) {
-//     return absl::make_unique<transform::Rigid2d>(pose_prediction);
-//   }
-//   std::shared_ptr<const Submap2D> matching_submap =
-//       active_submaps_.submaps().front();
-  
-//   //
-//   std::shared_ptr<const Submap2D> matching_multi_2_submap =
-//       active_submaps_.submaps().front();
-//   std::shared_ptr<const Submap2D>matching_multi_4_submap =
-//       active_submaps_.submaps().front();
-//   // 
-//   // The online correlative scan matcher will refine the initial estimate for
-//   // the Ceres scan matcher.
-//   transform::Rigid2d initial_ceres_pose = pose_prediction;
-// // 修改
-//   if (options_.use_online_correlative_scan_matching()) {
-//     const double score = real_time_correlative_scan_matcher_.Match(
-//         pose_prediction, filtered_gravity_aligned_point_cloud,
-//         *matching_submap->grid(), &initial_ceres_pose, corridor);
-//     kRealTimeCorrelativeScanMatcherScoreMetric->Observe(score);
-//   }
-
-//   auto pose_observation = absl::make_unique<transform::Rigid2d>();
-//   ceres::Solver::Summary summary;
-//   // 
-//   ceres_scan_matcher_.Match(pose_prediction.translation(), initial_ceres_pose,
-//                               filtered_gravity_aligned_point_cloud,
-//                               *matching_multi_4_submap->grid(), pose_observation.get(),
-//                               &summary);
-//   ceres_scan_matcher_.Match(pose_prediction.translation(), *pose_observation,
-//                               filtered_gravity_aligned_point_cloud,
-//                               *matching_multi_2_submap->grid(), pose_observation.get(),
-//                               &summary);
-//   ceres_scan_matcher_.Match(pose_prediction.translation(), initial_ceres_pose,
-//                             filtered_gravity_aligned_point_cloud,
-//                             *matching_submap->grid(), pose_observation.get(),
-//                             &summary);
-//   if (pose_observation) {
-//     kCeresScanMatcherCostMetric->Observe(summary.final_cost);
-//     const double residual_distance =
-//         (pose_observation->translation() - pose_prediction.translation())
-//             .norm();
-//     kScanMatcherResidualDistanceMetric->Observe(residual_distance);
-//     const double residual_angle =
-//         std::abs(pose_observation->rotation().angle() -
-//                  pose_prediction.rotation().angle());
-//     kScanMatcherResidualAngleMetric->Observe(residual_angle);
-//   }
-//   return pose_observation;
-// }
-
 std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
     const common::Time time, const transform::Rigid2d& pose_prediction,
     const sensor::PointCloud& filtered_gravity_aligned_point_cloud) {
@@ -127,39 +70,23 @@ std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
   }
   std::shared_ptr<const Submap2D> matching_submap =
       active_submaps_.submaps().front();
-  
-  std::shared_ptr<const Submap2D> matching_multi_2_submap =
-      active_submaps_.submaps().front();
-  std::shared_ptr<const Submap2D> matching_multi_4_submap =
-      active_submaps_.submaps().front();
-
+  // The online correlative scan matcher will refine the initial estimate for
+  // the Ceres scan matcher.
   transform::Rigid2d initial_ceres_pose = pose_prediction;
 
   if (options_.use_online_correlative_scan_matching()) {
-    // 保留你自定义的 corridor 逻辑
     const double score = real_time_correlative_scan_matcher_.Match(
         pose_prediction, filtered_gravity_aligned_point_cloud,
-        *matching_submap->grid(), &initial_ceres_pose, corridor);
+        *matching_submap->grid(), &initial_ceres_pose);
     kRealTimeCorrelativeScanMatcherScoreMetric->Observe(score);
   }
 
   auto pose_observation = absl::make_unique<transform::Rigid2d>();
   ceres::Solver::Summary summary;
-
-  // 执行三次匹配（保持你的原有逻辑）
-  ceres_scan_matcher_.Match(pose_prediction.translation(), initial_ceres_pose,
-                              filtered_gravity_aligned_point_cloud,
-                              *matching_multi_4_submap->grid(), pose_observation.get(),
-                              &summary);
-  ceres_scan_matcher_.Match(pose_prediction.translation(), *pose_observation,
-                              filtered_gravity_aligned_point_cloud,
-                              *matching_multi_2_submap->grid(), pose_observation.get(),
-                              &summary);
   ceres_scan_matcher_.Match(pose_prediction.translation(), initial_ceres_pose,
                             filtered_gravity_aligned_point_cloud,
                             *matching_submap->grid(), pose_observation.get(),
                             &summary);
-
   if (pose_observation) {
     kCeresScanMatcherCostMetric->Observe(summary.final_cost);
     const double residual_distance =
@@ -170,55 +97,6 @@ std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
         std::abs(pose_observation->rotation().angle() -
                  pose_prediction.rotation().angle());
     kScanMatcherResidualAngleMetric->Observe(residual_angle);
-
-    // ==========================================
-    // 论文实验核心逻辑：计算退化因子 eta
-    // ==========================================
-    // --- 论文实验代码：再次修正版 ---
-    // 1. 获取基类引用
-    const auto& grid = *matching_submap->grid();
-    const float res = grid.limits().resolution();
-    Eigen::Matrix2d H = Eigen::Matrix2d::Zero();
-
-    // 2. 核心修复：使用全路径命名空间进行类型强转
-    // 这样可以确保编译器在任何位置都能准确识别类型
-    using CartoProbGrid = ::cartographer::mapping::ProbabilityGrid;
-    const CartoProbGrid& prob_grid = static_cast<const CartoProbGrid&>(grid);
-
-    for (const auto& point : filtered_gravity_aligned_point_cloud) {
-        // 修改1: 通过 .position 访问坐标，然后再 head<2>()
-        Eigen::Vector2f p = pose_observation->cast<float>() * point.position.head<2>();
-        
-        auto idx_x_p = grid.limits().GetCellIndex(p + Eigen::Vector2f(res, 0));
-        auto idx_x_m = grid.limits().GetCellIndex(p - Eigen::Vector2f(res, 0));
-        auto idx_y_p = grid.limits().GetCellIndex(p + Eigen::Vector2f(0, res));
-        auto idx_y_m = grid.limits().GetCellIndex(p - Eigen::Vector2f(0, res));
-
-        if (grid.limits().Contains(idx_x_p) && grid.limits().Contains(idx_x_m) &&
-            grid.limits().Contains(idx_y_p) && grid.limits().Contains(idx_y_m)) {
-            
-            // 修改2: 使用 prob_grid 调用 GetProbability
-            float gx = (prob_grid.GetProbability(idx_x_p) - prob_grid.GetProbability(idx_x_m)) / (2.0 * res);
-            float gy = (prob_grid.GetProbability(idx_y_p) - prob_grid.GetProbability(idx_y_m)) / (2.0 * res);
-            
-            Eigen::Vector2d g(gx, gy);
-            H += g * g.transpose();
-        }
-    }
-
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix2d> es(H);
-    double l1 = es.eigenvalues()[1]; 
-    double l2 = es.eigenvalues()[0]; 
-    
-    double A = (l1 - l2) / (l1 + l2 + 1e-6);
-    double tau = 10.0; 
-    double I = (l1 + l2) / (l1 + l2 + tau);
-    double eta = 1.0 - (1.0 - A) * I;
-
-    double ts = common::ToSeconds(time - common::FromUniversal(0));
-    g_logger->Log({ts, l1, l2, A, I, eta});
-    // --- 论文实验代码结束 ---
-    // ==========================================
   }
   return pose_observation;
 }
@@ -229,9 +107,6 @@ LocalTrajectoryBuilder2D::AddRangeData(
     const sensor::TimedPointCloudData& unsynchronized_data) {
   auto synchronized_data =
       range_data_collator_.AddRangeData(sensor_id, unsynchronized_data);
-      // 修改
-     corridor= unsynchronized_data.corridor;
-
   if (synchronized_data.ranges.empty()) {
     LOG(INFO) << "Range data collator filling buffer.";
     return nullptr;

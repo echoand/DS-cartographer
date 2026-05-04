@@ -79,10 +79,10 @@ class Submap2D : public Submap {
 class ActiveSubmaps2D {
  public:
   explicit ActiveSubmaps2D(const proto::SubmapsOptions2D& options);
-   
+
   ActiveSubmaps2D(const ActiveSubmaps2D&) = delete;
   ActiveSubmaps2D& operator=(const ActiveSubmaps2D&) = delete;
- 
+
   // Inserts 'range_data' into the Submap collection.
   std::vector<std::shared_ptr<const Submap2D>> InsertRangeData(
       const sensor::RangeData& range_data);
@@ -91,16 +91,12 @@ class ActiveSubmaps2D {
 
  private:
   std::unique_ptr<RangeDataInserterInterface> CreateRangeDataInserter();
-
-  std::unique_ptr<GridInterface> CreateGrid(const Eigen::Vector2f& origin, float ratio);
+  std::unique_ptr<GridInterface> CreateGrid(const Eigen::Vector2f& origin);
   void FinishSubmap();
   void AddSubmap(const Eigen::Vector2f& origin);
-  void  AddMultiSubmap(const Eigen::Vector2f& origin);
 
   const proto::SubmapsOptions2D options_;
   std::vector<std::shared_ptr<Submap2D>> submaps_;
-  std::vector<std::shared_ptr<Submap2D>> multi_2_submaps_;
-  std::vector<std::shared_ptr<Submap2D>> multi_4_submaps_;
   std::unique_ptr<RangeDataInserterInterface> range_data_inserter_;
   ValueConversionTables conversion_tables_;
 };
@@ -109,4 +105,3 @@ class ActiveSubmaps2D {
 }  // namespace cartographer
 
 #endif  // CARTOGRAPHER_MAPPING_2D_SUBMAP_2D_H_
-

@@ -157,60 +157,21 @@ std::vector<std::shared_ptr<const Submap2D>> ActiveSubmaps2D::submaps() const {
   return std::vector<std::shared_ptr<const Submap2D>>(submaps_.begin(),
                                                       submaps_.end());
 }
-//接口函数：将数据插入submap，并管理是否新建submap或者finish submap
+
 std::vector<std::shared_ptr<const Submap2D>> ActiveSubmaps2D::InsertRangeData(
     const sensor::RangeData& range_data) {
-      //..
-  if (multi_2_submaps_.empty() && multi_4_submaps_.empty()) {
-      AddMultiSubmap(range_data.origin.head<2>());
-  }
-  //..
   if (submaps_.empty() ||
       submaps_.back()->num_range_data() == options_.num_range_data()) {
-      // 当range data 数量达到配置的值时，将新建个submap
     AddSubmap(range_data.origin.head<2>());
   }
   for (auto& submap : submaps_) {
-    //2个submap分别插入数据  
     submap->InsertRangeData(range_data, range_data_inserter_.get());
   }
-//...
-  for (auto& multi_2_submap : multi_2_submaps_) {
-    multi_2_submap->InsertRangeData(range_data, range_data_inserter_.get());
-  }
- 
-  for (auto& multi_4_submap : multi_4_submaps_) {
-    multi_4_submap->InsertRangeData(range_data, range_data_inserter_.get());
-  }
-//...
   if (submaps_.front()->num_range_data() == 2 * options_.num_range_data()) {
     submaps_.front()->Finish();
   }
   return submaps();
 }
-
-//
-void ActiveSubmaps2D::AddMultiSubmap(const Eigen::Vector2f& origin) {
-  if (submaps_.size() >= 2) { 
-    multi_2_submaps_.clear();
-    multi_4_submaps_.clear();
-  }
- 
-  multi_2_submaps_.push_back(absl::make_unique<Submap2D>(
-      origin,
-      std::unique_ptr<Grid2D>(
-          static_cast<Grid2D*>(CreateGrid(origin,2.).release())),
-      &conversion_tables_));
- 
-  multi_4_submaps_.push_back(absl::make_unique<Submap2D>(
-    origin,
-    std::unique_ptr<Grid2D>(
-        static_cast<Grid2D*>(CreateGrid(origin,4.).release())),
-    &conversion_tables_));
- 
-}
-
-//
 
 std::unique_ptr<RangeDataInserterInterface>
 ActiveSubmaps2D::CreateRangeDataInserter() {
@@ -226,15 +187,12 @@ ActiveSubmaps2D::CreateRangeDataInserter() {
     default:
       LOG(FATAL) << "Unknown RangeDataInserterType.";
   }
-  return absl::make_unique<ProbabilityGridRangeDataInserter2D>(
-          options_.range_data_inserter_options()
-              .probability_grid_range_data_inserter_options_2d());
 }
 
 std::unique_ptr<GridInterface> ActiveSubmaps2D::CreateGrid(
-    const Eigen::Vector2f& origin, float ratio=1.0) {
+    const Eigen::Vector2f& origin) {
   constexpr int kInitialSubmapSize = 100;
-  float resolution = options_.grid_options_2d().resolution()*ratio;
+  float resolution = options_.grid_options_2d().resolution();
   switch (options_.grid_options_2d().grid_type()) {
     case proto::GridOptions2D::PROBABILITY_GRID:
       return absl::make_unique<ProbabilityGrid>(
@@ -261,7 +219,6 @@ std::unique_ptr<GridInterface> ActiveSubmaps2D::CreateGrid(
     default:
       LOG(FATAL) << "Unknown GridType.";
   }
-    return std::unique_ptr<GridInterface>(new GridInterface());
 }
 
 void ActiveSubmaps2D::AddSubmap(const Eigen::Vector2f& origin) {
@@ -271,7 +228,6 @@ void ActiveSubmaps2D::AddSubmap(const Eigen::Vector2f& origin) {
     CHECK(submaps_.front()->insertion_finished());
     submaps_.erase(submaps_.begin());
   }
-  // 新建一个active submap
   submaps_.push_back(absl::make_unique<Submap2D>(
       origin,
       std::unique_ptr<Grid2D>(
@@ -281,4 +237,3 @@ void ActiveSubmaps2D::AddSubmap(const Eigen::Vector2f& origin) {
 
 }  // namespace mapping
 }  // namespace cartographer
-
