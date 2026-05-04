@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/lxb/carto_ws/install_isolated/include/**",
+        "/home/lxb/livox_ws/devel/include/**",
+        "/home/lxb/catkin_ws1/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/lxb/catkin_ws1/src/line/include/**",
+        "/home/lxb/catkin_ws1/src/robot_pose_ekf/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

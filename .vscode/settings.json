@@ -1,0 +1,16 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/lxb/carto_ws/devel_isolated/turtlebot3_teleop/lib/python3/dist-packages",
+        "/home/lxb/carto_ws/install_isolated/lib/python3/dist-packages",
+        "/home/lxb/livox_ws/devel/lib/python3/dist-packages",
+        "/home/lxb/catkin_ws1/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/lxb/carto_ws/devel_isolated/turtlebot3_teleop/lib/python3/dist-packages",
+        "/home/lxb/carto_ws/install_isolated/lib/python3/dist-packages",
+        "/home/lxb/livox_ws/devel/lib/python3/dist-packages",
+        "/home/lxb/catkin_ws1/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
+}

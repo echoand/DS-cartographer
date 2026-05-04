@@ -1,0 +1,4 @@
+cd carto_ws
+source devel_isolated/setup.bash
+roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=cartographer 
+roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch
