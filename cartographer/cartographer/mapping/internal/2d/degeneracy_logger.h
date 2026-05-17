@@ -12,6 +12,9 @@ namespace mapping {
 struct DegeneracyMetrics {
     double timestamp;
     double l1, l2, A, I, eta;
+        // 新增（baseline）
+    double ratio;
+    double deg_eigen;   // 用 double（0/1），方便CSV
 };
 
 class InlineDegeneracyLogger {
@@ -20,7 +23,7 @@ public:
     explicit InlineDegeneracyLogger(const std::string& filepath) {
         file_.open(filepath, std::ios::out);
         if (file_.is_open()) {
-            file_ << "timestamp,l1,l2,A,I,eta" << std::endl;
+            file_ << "timestamp,l1,l2,A,I,eta,ratio,deg_eigen" << std::endl;
         }
     }
 
@@ -30,9 +33,16 @@ public:
 
     void Log(const DegeneracyMetrics& data) {
         if (!file_.is_open()) return;
-        file_ << std::fixed << std::setprecision(6) 
-              << data.timestamp << "," << data.l1 << "," << data.l2 << "," 
-              << data.A << "," << data.I << "," << data.eta << std::endl;
+        file_ << std::fixed << std::setprecision(6)
+          << data.timestamp << ","
+          << data.l1 << ","
+          << data.l2 << ","
+          << data.A << ","
+          << data.I << ","
+          << data.eta << ","
+          << data.ratio << ","
+          << data.deg_eigen
+          << std::endl;
     }
 
 private:

@@ -205,7 +205,12 @@ std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
             H += g * g.transpose();
         }
     }
+        // ✔ 关键：归一化（保证不同帧可比）
+    if (!filtered_gravity_aligned_point_cloud.empty()) {
+      H /= filtered_gravity_aligned_point_cloud.size();
+    }
 
+    // ---------------- 我的方法 ----------------
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix2d> es(H);
     double l1 = es.eigenvalues()[1]; 
     double l2 = es.eigenvalues()[0]; 
@@ -215,8 +220,12 @@ std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
     double I = (l1 + l2) / (l1 + l2 + tau);
     double eta = 1.0 - (1.0 - A) * I;
 
+    // ---------------- Baseline（Eigenvalue） ----------------
+    double ratio = l2 / (l1 + 1e-6);
+    bool deg_eigen = (ratio < 0.2);
+
     double ts = common::ToSeconds(time - common::FromUniversal(0));
-    g_logger->Log({ts, l1, l2, A, I, eta});
+    g_logger->Log({ts, l1, l2, A, I, eta, ratio, deg_eigen ? 1.0 : 0.0});
     // --- 论文实验代码结束 ---
     // ==========================================
   }
